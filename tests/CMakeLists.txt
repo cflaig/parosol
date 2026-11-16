@@ -1,0 +1,5 @@
+add_executable(global_node_ids_test global_node_ids_test.cpp)
+target_compile_features(global_node_ids_test PRIVATE cxx_std_17)
+target_include_directories(global_node_ids_test PRIVATE ../src)
+target_link_libraries(global_node_ids_test PRIVATE Eigen3::Eigen)
+add_test(NAME global_node_ids COMMAND global_node_ids_test)

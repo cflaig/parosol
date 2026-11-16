@@ -47,3 +47,8 @@ target_link_libraries(${PAROSOL_BIN} PUBLIC HDF5::HDF5)
 # Supported with Eigen 3.3
 target_link_libraries(${PAROSOL_BIN} PUBLIC Eigen3::Eigen)
 
+
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

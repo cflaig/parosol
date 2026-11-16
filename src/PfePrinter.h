@@ -23,6 +23,7 @@
 #include "GWriter.hpp"
 #include "OctreeGrid.h"
 #include "Postprocessing.h"
+#include "GlobalNodeIds.h"
 
 #include <eigen3/Eigen/Core>
 
@@ -165,14 +166,7 @@ public:
     // Quick an dirty hack:
     // compute the offset with double
     Eigen::VectorXd ind(_grid.GetNrDofs());
-    _grid.Recv_import_Ghost(ind);
-    ind.setZero(_grid.GetNrDofs());
-    t_octree_key offset = _grid.GetNodeOffset();
-    for (unsigned int i = 0; i < _grid.GetNrNodes(); i++) {
-      ind[3 * i] = i + offset + 1;
-    }
-    _grid.Send_import_Ghost(ind);
-    _grid.Wait_import_Ghost();
+    SetGlobalNodeIds(_grid, ind);
 
     t_index e = 0;
     for (_grid.initIterateOverElements(); _grid.TestIterateOverElements();
