@@ -244,7 +244,6 @@ template <class Grid> Eigen::VectorXd &GenericMatrix<Grid>::Diagonal() {
     }
     _grid.Send_export_Ghost(*diagonal);
     _grid.WaitAndCopy_export_Ghost(*diagonal);
-    _grid.Recv_import_Ghost(*diagonal);
 
     // apply fixed nodes on vec
     for (t_index i = 0; i < _grid.bc.FixedNodes_Ind.size(); ++i) {
@@ -253,22 +252,15 @@ template <class Grid> Eigen::VectorXd &GenericMatrix<Grid>::Diagonal() {
     }
 
     double d;
-    double dmax = 0;
-    for (t_index i = 0; i < _mydofs; ++i) {
-      if (dmax < diagonal->operator[](i))
-        ;
-      dmax = diagonal->operator[](i);
-    }
     // compute the pseudo invers of the diagonal. If the entry is zero than set
     // it also in the inverse to zero
-    for (t_index i = 0; i < _mydofs; ++i) {
+    for (t_index i = 0; i < 3 * _grid.GetNrPrivateNodes(); ++i) {
       d = diagonal->operator[](i);
-      diagonal->operator[](i) = 1.0 / d;
-
-      if (d == 0)
-        diagonal->operator[](i) = 0;
+      diagonal->operator[](i) = d == 0 ? 0 : 1.0 / d;
     }
 
+    // Finish inversion before posting receives of already inverted ghost values.
+    _grid.Recv_import_Ghost(*diagonal);
     _grid.Send_import_Ghost(*diagonal);
     _grid.Wait_import_Ghost();
     //*diagonal = diagonal->cwise()*(*diagonal);
