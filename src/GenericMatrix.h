@@ -27,6 +27,7 @@
 #include "Toolbox.h"
 #include "fem.h"
 #include <iomanip>
+#include <cstdint>
 
 void decarbenz(double *Y, double *X);
 
@@ -89,8 +90,18 @@ public:
 
   int GetPID() { return MyPID; }
   void SetVectorRandom(Eigen::VectorXd &x) {
-    x.setRandom(GetNrDofs());
-    x.setRandom(GetNrDofs());
+    x.resize(GetNrDofs());
+    // A fixed hash of the global node key and displacement component gives
+    // the same start on every call, independent of the MPI partition.
+    const auto &nodes = _grid.GetOctGrid();
+    for (t_index i=0; i<GetNrDofs()/3; ++i) for (unsigned c=0; c<3; ++c) {
+      std::uint64_t v = std::uint64_t(nodes[i].key) +
+          0x9e3779b97f4a7c15ULL * (c+1);
+      v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+      v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+      v ^= v >> 31;
+      x[3*i+c] = 2.0 * double(v >> 11) * 0x1.0p-53 - 1.0;
+    }
     _grid.Recv_import_Ghost(x);
     MPI_Barrier(MPI_COMM_WORLD);
     _grid.Send_import_Ghost(x);

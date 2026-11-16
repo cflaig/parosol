@@ -29,3 +29,25 @@ ParOSol run in parallel:
     mpirun -n 4 parosol --level 3 --tol 1e-4 simple.h5
 
 will run ParOSol using four threads.
+
+## Eigenvalue estimation
+
+`--eigen-max-iterations N` sets the **maximum** iterations for the adaptive
+Chebyshev spectral estimate on each level (default 100, allowed 2–1000).
+Every five steps, both the relative change of the largest Ritz value and
+its relative Ritz residual must be below 1%, twice consecutively. Each
+level stops independently; numerical Krylov termination can finish sooner.
+The start vector is reproducible and varies by global node and component.
+If the limit is reached without convergence, setup fails with a diagnostic;
+increase the limit in that case. Normal convergence requires at least 15
+steps, so a limit of 10 is generally insufficient.
+
+The upper endpoint retains its 5% safety margin. This is still an estimate,
+not a certified spectral bound; convergence targets the largest eigenvalue,
+not the smallest. The iteration limit is separate from the polynomial degree.
+
+For example:
+
+```sh
+mpirun -n 4 parosol --eigen-max-iterations 100 model.h5
+```

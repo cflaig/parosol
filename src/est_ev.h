@@ -23,18 +23,31 @@
 #include "StiffnessMatrix.h"
 
 struct eig {
-  double large, small;
+  double large = 0, small = 0;
+  int iterations = 0;
+  double relativeResidual = 0, relativeChange = 0;
+  bool converged = false;
+  bool invariantSubspace = false;
 };
 
-/** computes the eigenvalues of the preconditions system
+/** Estimates the extremal eigenvalues of the preconditioned system.
+ * The largest Ritz value is accepted after two checks, five steps apart,
+ * with relative Ritz residual and relative change both below 1 percent.
+ * Exact/numerical Krylov termination can finish earlier. This is not a
+ * certified upper bound. Check converged before using the returned bounds.
  *
  * @param _mat the system matrix
  * @param _prec preconditioner
- * @param maxint number of iteration to compute the eigenvalues
+ * @param maxint hard iteration limit (not a fixed iteration count)
  * @param m1 temporary Vector, that is needed for the computation.
  * @param m2 temporary Vector, that is needed for the computation.
  */
 
 eig est_ev(StiffnessMatrix &_mat, Solver &_prec, int maxint,
            Eigen::VectorXd &m1, Eigen::VectorXd &m2);
+
+// Shared adaptive Jacobi spectrum and diagnostics for both Chebyshev kinds.
+// Throws if the estimate has not converged within maxit.
+eig EstimateChebyshevSpectrum(StiffnessMatrix &mat, int maxit,
+                             Eigen::VectorXd &work1, Eigen::VectorXd &work2);
 #endif /* EST_EV_H */

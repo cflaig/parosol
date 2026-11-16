@@ -17,10 +17,11 @@
  */
 
 #include <iostream>
+#include <stdexcept>
+#include <cmath>
 
 #include "Chebyshev.h"
 #include "est_ev.h"
-#include "Jacobi.h"
 
 Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart, Eigen::VectorXd &m1, Eigen::VectorXd &m2, int maxit, double lmax, double lmin, double ratio):
   _mat(M),
@@ -34,13 +35,14 @@ Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart, Eigen::Vect
   p(m2)
 {
  if (maxit != 0) {
-  Jacobi prec(_mat);
-  eig e = est_ev(_mat, prec, maxit,z,p);
+  const eig e = EstimateChebyshevSpectrum(_mat, maxit, z, p);
   _lmax = e.large*1.05;
   _lmin = e.small;
   //use ration if set
   if (ratio >0)
 	  _lmin = e.large/ratio;
+  if (!(_lmin > 0 && _lmax > _lmin) || !std::isfinite(_lmin) || !std::isfinite(_lmax))
+    throw std::runtime_error("Chebyshev eigenvalue estimate produced an invalid interval");
   if (0 == _mat.GetPID())
       std::cout << "lmax = " << e.large << "   lmin used = " << _lmin << "   lmax used = " << _lmax  << std::endl;
   }

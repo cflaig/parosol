@@ -45,7 +45,7 @@ public:
    * @param m1 temporary Vector, that is needed for the computation.
    * @param m2 temporary Vector, that is needed for the computation.
    * @param maxit The maximum number of iteration to estimate the eigenvalues.
-   * (Default 10)
+   * (Default 100; adaptive stopping)
    * @param lmax Estimation of the biggest eigenvalue. (Default 0 -> means not
    * used)
    * @param lmin Estimation of the smallest eigenvalue. (Default 0 -> means not
@@ -53,7 +53,7 @@ public:
    * @param ratio Ratio of lmax/lmin. It is used to compute lmin.
    */
   Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart, Eigen::VectorXd &m1,
-            Eigen::VectorXd &m2, int maxit = 10, double lmax = 0,
+            Eigen::VectorXd &m2, int maxit = 100, double lmax = 0,
             double lmin = 0, double ratio = 16);
   /**
    * @brief This constructor copies the configuration of the old chebyshev

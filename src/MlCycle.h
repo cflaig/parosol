@@ -54,11 +54,12 @@ public:
    * @param level Number of max level.
    * @param stype Smoother type (0: Chebyshev, 1: Jacobismoother)
    * @param ratio Ration of the Eigenvlaue. See Chebyshev smoother
+   * @param eigenIterations Maximum adaptive spectral-estimation steps per level.
    * @param w weight parameter of the Jacobismoother
    */
   MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T>> &mat,
           int degree = 8, int level = -1, int stype = 0, double ratio = 16,
-          double w = 0.61);
+          double w = 0.61, int eigenIterations = 100);
 
   ~MlCycle() {
     delete _coarsegrid;
@@ -91,7 +92,8 @@ private:
 
 template <class T>
 MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T>> &mat,
-                    int degree, int level, int stype, double ratio, double w)
+                    int degree, int level, int stype, double ratio, double w,
+                    int eigenIterations)
     : _finegrid(finegrid), _finemat(mat), _level(level), _w(w) {
   // Debug output
   //	if (mat.GetPID() ==0) {
@@ -113,7 +115,7 @@ MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T>> &mat,
   e_coarse.setZero(nr_coarse_dofs);
 
   // setting up cheb
-  int MaxIters = 10;
+  const int MaxIters = eigenIterations;
 
   if (stype == 0) {
     Chebyshev *tmpsmoother = new Chebyshev(_finemat, degree, true, r_fine,
@@ -137,7 +139,7 @@ MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T>> &mat,
     _solver = new MlLevelCG(*_coarsemat);
   else
     _solver = new MlCycle(*_coarsegrid, *_coarsemat, degree, level - 1, stype,
-                          ratio, w);
+                          ratio, w, eigenIterations);
 
   return;
 }

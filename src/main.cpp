@@ -17,6 +17,8 @@
  */
 
 #include <iostream>
+#include <cstdlib>
+#include <stdexcept>
 
 #include <mpi.h>
 #include <eigen3/Eigen/Core>
@@ -57,11 +59,12 @@ int main( int argc, char* argv[])
     MPI_Comm_size (MPI_COMM_WORLD, &psize);
 
     std::string file;
-    int level = 6, degree = 10;
+    int level = 6, degree = 10, eigenIterations = 100;
     double tol = 1e-6;
 
     std::string usage = std::string("usage: ") + argv[0]
         + std::string(" [--level arg (6)]")
+        + std::string(" [--eigen-max-iterations arg (100)]")
         + std::string(" [--tol arg (1e-6)]")
         + std::string(" filename\n"); 
 
@@ -79,6 +82,22 @@ int main( int argc, char* argv[])
             i++;
             level = atoi(argv[i]);
         }
+        else if (param == "--eigen-max-iterations") {
+            if (i+1 >= argc) {
+                PCOUT(MyPID, usage);
+                MPI_Finalize();
+                return 2;
+            }
+            const std::string value(argv[++i]);
+            char *end = nullptr;
+            const long parsed = std::strtol(value.c_str(), &end, 10);
+            if (value.empty() || *end != '\0' || parsed < 2 || parsed > 1000) {
+                PCOUT(MyPID, "Eigenvalue estimation iterations must be an integer from 2 to 1000\n" << usage);
+                MPI_Finalize();
+                return 2;
+            }
+            eigenIterations = static_cast<int>(parsed);
+        }
         else if(param.compare("--tol") == 0) {
             i++;
             tol = atof(argv[i]);
@@ -89,12 +108,14 @@ int main( int argc, char* argv[])
     }
 
     PCOUT(MyPID, "file: " << file << " tolerance: " << tol << " max. num. level: "<< level << std::endl);
+    PCOUT(MyPID, "Eigenvalue estimation iteration limit: " << eigenIterations << std::endl);
     if (file.compare("") == 0) {
         PCOUT(MyPID, "No file given\n");
         MPI_Finalize();
         return -10;
     }
 
+    try {
     Timer timer(MPI_COMM_WORLD);
     timer.Start("All");
 
@@ -135,7 +156,7 @@ int main( int argc, char* argv[])
 
     //Construct the preconditioner
     timer.Start("Prec");
-    MlCycle<OctreeKey_Lookup>  prec(grid, matr, degree, level-1, 0, 16,0);
+    MlCycle<OctreeKey_Lookup>  prec(grid, matr, degree, level-1, 0, 16,0,eigenIterations);
     PCOUT(MyPID, "Prec done\n");
     timer.Stop("Prec");
     elapsed_time = timer.ElapsedTime("Prec");
@@ -175,6 +196,11 @@ int main( int argc, char* argv[])
 
     //mflops(matr, MyPID);
 
+    } catch (const std::exception &error) {
+        std::cerr << "Rank " << MyPID << ": " << error.what() << std::endl;
+        MPI_Abort(MPI_COMM_WORLD, 2);
+        return 2;
+    }
     MPI_Finalize();
     return 0;
 }

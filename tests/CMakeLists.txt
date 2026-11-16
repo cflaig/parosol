@@ -18,3 +18,18 @@ foreach(ranks 1 2 4)
         $<TARGET_FILE:diagonal_mpi_test> ${MPIEXEC_POSTFLAGS} 8)
     set_tests_properties(octree_empty_partitions_mpi_${ranks} PROPERTIES PROCESSORS ${ranks} TIMEOUT 60)
 endforeach()
+
+add_executable(est_ev_test est_ev_test.cpp ../src/est_ev.cpp ../src/Chebyshev.cpp)
+target_compile_features(est_ev_test PRIVATE cxx_std_17)
+target_include_directories(est_ev_test PRIVATE ../src)
+target_link_libraries(est_ev_test PRIVATE Eigen3::Eigen MPI::MPI_CXX)
+foreach(ranks 1 2 8)
+    add_test(NAME est_ev_mpi_${ranks} COMMAND ${MPIEXEC_EXECUTABLE}
+        ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:est_ev_test> ${MPIEXEC_POSTFLAGS})
+    set_tests_properties(est_ev_mpi_${ranks} PROPERTIES PROCESSORS ${ranks} TIMEOUT 60)
+endforeach()
+
+add_test(NAME eigen_iterations_cli COMMAND ${CMAKE_COMMAND}
+    -DPAROSOL=$<TARGET_FILE:parosol> -P ${CMAKE_CURRENT_SOURCE_DIR}/eigen_iterations_cli_test.cmake)
+set_tests_properties(eigen_iterations_cli PROPERTIES TIMEOUT 120)
