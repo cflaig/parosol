@@ -9,11 +9,11 @@ using Base = OctreeGrid<OctreeKey_Lookup>;
 
 class Image : public ImageReader {
 public:
+  explicit Image(int size) : n(size) {}
   int Scan(BaseGrid *g) override {
     int rank, ranks;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &ranks);
-    constexpr int n = 12;
     const int start = n * rank / ranks, end = n * (rank + 1) / ranks;
     g->gdim_x = g->gdim_y = g->gdim_z = n;
     g->ldim_x = g->ldim_y = n; g->ldim_z = end - start;
@@ -34,6 +34,8 @@ public:
           }
     return 0;
   }
+private:
+  int n;
 };
 
 // Exercise the production matrix with real MPI communication. Completing an
@@ -61,9 +63,18 @@ public:
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   {
-    Image image;
+    const int n = argc == 2 && std::string(argv[1]) == "8" ? 8 : 12;
+    Image image(n);
     Grid grid(image);
     grid.GenerateBC();
+    if (grid.GetNrElemGlobal() != n*n*n || grid.GetNrNodesGlobal() != (n+1)*(n+1)*(n+1))
+      MPI_Abort(MPI_COMM_WORLD, 5);
+    if (n == 8 && grid.GetNrCPU() == 4) {
+      // The fourth partition receives only helper nodes during Sort().
+      // It must not acquire a fabricated key-zero node or any owned DOFs.
+      if (grid.GetPID() == 3 && grid.GetNrNodes() != 0)
+        MPI_Abort(MPI_COMM_WORLD, 6);
+    }
     using Matrix = GenericMatrix<Grid>;
     Matrix reference(grid);
     Eigen::VectorXd expected = Eigen::VectorXd::Zero(grid.GetNrDofs());
@@ -104,6 +115,18 @@ int main(int argc, char **argv) {
         std::cout << "Diagonal: immediate=" << immediate << " error=" << globalError << '\n';
       if (globalError > 2e-12) MPI_Abort(MPI_COMM_WORLD, 3);
       if (&matrix.Diagonal() != &actual) MPI_Abort(MPI_COMM_WORLD, 4);
+    }
+    if (n == 8) {
+      // Also exercise empty receive buffers and partitions containing only
+      // helper nodes directly, without requiring a particular load balance.
+      grid.GetOctGrid().clear();
+      grid.Sort();
+      if (!grid.GetOctGrid().empty()) MPI_Abort(MPI_COMM_WORLD, 7);
+      grid.GetOctGrid().emplace_back(100 + grid.GetPID(), -2);
+      grid.Sort();
+      if (!grid.GetOctGrid().empty()) MPI_Abort(MPI_COMM_WORLD, 8);
+      if (grid.GetPID() == 0)
+        std::cout << "Empty and helper-only partitions remain empty\n";
     }
   }
   MPI_Finalize();

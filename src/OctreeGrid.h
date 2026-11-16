@@ -1093,7 +1093,7 @@ public:
           recv_pos[i] = recv_pos[i - 1] + recv_count[i - 1];
       }
 
-      MPI_Gatherv(sending_addr, sending_count, MPI_BYTE, &newgrid[0],
+      MPI_Gatherv(sending_addr, sending_count, MPI_BYTE, newgrid.data(),
                   (int *)&recv_count[0], (int *)&recv_pos[0], MPI_BYTE,
                   recv_cpu, MPI_COMM_WORLD);
     }
@@ -1108,6 +1108,10 @@ public:
 
     while (i < newgrid.size() && newgrid[i].w <= 0)
       i++;
+    // _OctreeGrid was cleared above. A partition with no active elements
+    // must stay empty; there is no first element to copy or retain.
+    if (i == newgrid.size())
+      return;
     if (i > 0) {
       newgrid[0] = newgrid[i];
     }

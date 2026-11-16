@@ -13,4 +13,8 @@ foreach(ranks 1 2 4)
         ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS}
         $<TARGET_FILE:diagonal_mpi_test> ${MPIEXEC_POSTFLAGS})
     set_tests_properties(diagonal_mpi_${ranks} PROPERTIES PROCESSORS ${ranks} TIMEOUT 60)
+    add_test(NAME octree_empty_partitions_mpi_${ranks} COMMAND ${MPIEXEC_EXECUTABLE}
+        ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:diagonal_mpi_test> ${MPIEXEC_POSTFLAGS} 8)
+    set_tests_properties(octree_empty_partitions_mpi_${ranks} PROPERTIES PROCESSORS ${ranks} TIMEOUT 60)
 endforeach()
