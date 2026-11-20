@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
-
 PROJECT( cudaparosol )
-
-FIND_PACKAGE(CUDA)
 
 SET( cudaparosol_src
     ApplyKernels.cu
@@ -32,19 +28,12 @@ SET( cudaparosol_src
     PCGSolverMC.cpp
     GPUMemoryManager.cpp
     main.cpp
-    OPTIONS -gencode arch=compute_30,code=sm_30
 )
 
-CUDA_ADD_EXECUTABLE( cudaparosol ${cudaparosol_src} )
+add_executable( cudaparosol ${cudaparosol_src} )
 
-#Debuggin
-#SET( CMAKE_VERBOSE_MAKEFILE on )
-set(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS} -fopenmp")
-
-# HDF5
-FIND_PACKAGE(HDF5 REQUIRED)
-include_directories(${HDF5_INCLUDE_DIRS})
-set(LIBS ${LIBS} ${HDF5_LIBRARIES})
+target_compile_options(cudaparosol PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-Wall>")
+target_link_libraries(cudaparosol PRIVATE MPI::MPI_CXX HDF5::HDF5 OpenMP::OpenMP_CXX CUDA::cudart)
 
 # Doxygen
 include(FindDoxygen)
@@ -56,5 +45,3 @@ IF (DOXYGEN_FOUND)
 ELSE (DOXYGEN_FOUND)
     MESSAGE(STATUS "WARNING: Doxygen not found - Reference manual will not be created")
 ENDIF (DOXYGEN_FOUND)
-
-target_link_libraries(cudaparosol ${LIBS})

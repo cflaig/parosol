@@ -27,6 +27,7 @@
 
 void SetLocalStiffnessMatrix(t_double *sMat,int offset);
 void SetRpLookupTable();
+cudaError_t CheckCudaKernelImage();
 
 class GPUGridOffset {
 

@@ -21,7 +21,6 @@
 #define THREADS_PER_BLOCK 256
 
 #include <iostream>
-#include <chrono>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
@@ -37,7 +36,6 @@ void SetLocalStiffnessMatrix(t_double *smat,int offset) {
 }
 
 void SetRpLookupTable() {
-	static bool first_module_operation = true;
 	std::vector<Off8> table;
 	table.push_back(Off8(1,0,0,0));
 	table.push_back(Off8(2,1,0,0));
@@ -47,16 +45,7 @@ void SetRpLookupTable() {
 	table.push_back(Off8(4,1,4,5));
 	table.push_back(Off8(4,3,4,7));
 	table.push_back(Off8(8,0,0,0));
-	const auto start = std::chrono::steady_clock::now();
 	CCS(cudaMemcpyToSymbol(rpLookupTable,table.data(),8*sizeof(Off8),0,cudaMemcpyHostToDevice),"SetRpLookupTable 1");
-	if (first_module_operation) {
-		CCS(cudaDeviceSynchronize(),"SetRpLookupTable first-module sync");
-		const auto elapsed = std::chrono::duration<double>(
-			std::chrono::steady_clock::now() - start).count();
-		std::cerr << "[CUDA_STARTUP] first CUDA module operation ready in "
-		          << elapsed << " s\n";
-		first_module_operation = false;
-	}
 
 }
 
@@ -430,6 +419,15 @@ __global__ void MatrixVectorOffsetKernel(t_index numStarts,ElementOffsets elemen
 	MatMul(offsets,__ldg(&elementOffsets.dev_weights[index]),disps,smat,y);
 #else
 	MatMul(offsets,elementOffsets.dev_weights[index],disps,smat,y);
+#endif
+}
+
+cudaError_t CheckCudaKernelImage() {
+    cudaFuncAttributes attributes{};
+#ifdef HASH
+    return cudaFuncGetAttributes(&attributes, MatrixVectorHashKernel);
+#else
+    return cudaFuncGetAttributes(&attributes, MatrixVectorOffsetKernel);
 #endif
 }
 

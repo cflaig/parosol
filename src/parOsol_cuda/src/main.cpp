@@ -53,7 +53,6 @@ template <class T> class MlOctreeGrid;
 #include <exception>
 #include "GPUMemoryManager.h"
 #include "ApplyKernels.h"
-#include "../../utilities/cuda_jit_diagnostic.hpp"
 
 #ifdef HASH
 	#include "GPUGridBuilderHashSF.h"
@@ -543,38 +542,74 @@ int main( int argc, char* argv[]) {
 		PCOUT(MyPID,"only MPI_THREAD_SINGLE supported\n");
 	}
 
-	int _numThreads;
+	// The native grid builder requires a stable, supported OpenMP team.
+	omp_set_dynamic(0);
+	const auto supported_team_size = [](int threads) {
+		return threads == 1 || threads == 2 || threads == 4 || threads == 8 || threads == 16;
+	};
+	const int requested_threads = omp_get_max_threads();
+	int team_size = requested_threads;
+	if (supported_team_size(requested_threads)) {
 #pragma omp parallel
-	if (omp_get_thread_num() == 0) {
-		_numThreads = omp_get_num_threads();
+		{
+#pragma omp master
+			team_size = omp_get_num_threads();
+		}
 	}
 
-	PCOUT(MyPID,_numThreads << " threads are available.\n");
-
-	int device_count = 0;
-	cudaError_t device_count_err = cudaGetDeviceCount(&device_count);
-	if (device_count_err != cudaSuccess || device_count < 1) {
-		PCOUT(MyPID, "cudaGetDeviceCount failed: "
-		             << cudaGetErrorString(device_count_err) << "\n");
+	const int invalid_local_team = !supported_team_size(team_size);
+	int invalid_team = 0;
+	MPI_Allreduce(&invalid_local_team, &invalid_team, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+	if (invalid_team) {
+		if (invalid_local_team) {
+			std::cerr << "cudaparosol: unsupported OpenMP team size " << team_size
+			          << " on MPI rank " << pid << " (requested " << requested_threads << "). "
+			          << "Set OMP_NUM_THREADS and OMP_THREAD_LIMIT to allow 1, 2, 4, 8 or 16 threads.\n";
+		}
 		MPI_Finalize();
-		return -2;
+		return 2;
 	}
-	const int device_to_use = (device_count > 1) ? 1 : 0;
-	cudaError_t set_device_err = cudaSetDevice(device_to_use);
-	if (set_device_err != cudaSuccess) {
-		PCOUT(MyPID, "cudaSetDevice(" << device_to_use << ") failed: "
-		             << cudaGetErrorString(set_device_err) << "\n");
-		MPI_Finalize();
-		return -2;
-	}
-	int dev;
-	cudaGetDevice(&dev);
 
-	cudaDeviceProp deviceProp;
-	cudaGetDeviceProperties(&deviceProp,dev);
-	ifb::cuda_diagnostics::log_ptx_jit_requirement_once();
+	PCOUT(MyPID,team_size << " threads are available.\n");
 
-	std::cout << "möp " << deviceProp.name << "\n";
+    int device_count = 0;
+    const char *cuda_operation = "cudaGetDeviceCount";
+    cudaError_t cuda_error = cudaGetDeviceCount(&device_count);
+    if (cuda_error == cudaSuccess && device_count < 1) {
+        cuda_error = cudaErrorNoDevice;
+    }
+    const int device_to_use = (device_count > 1) ? 1 : 0;
+    if (cuda_error == cudaSuccess) {
+        cuda_operation = "cudaSetDevice";
+        cuda_error = cudaSetDevice(device_to_use);
+    }
+
+    cudaDeviceProp device{};
+    if (cuda_error == cudaSuccess) {
+        cuda_operation = "cudaGetDeviceProperties";
+        cuda_error = cudaGetDeviceProperties(&device, device_to_use);
+    }
+
+    if (cuda_error == cudaSuccess) {
+        cuda_operation = "CUDA kernel image check";
+        cuda_error = CheckCudaKernelImage();
+    }
+
+    const int local_cuda_failure = (cuda_error != cudaSuccess);
+    int cuda_failure = 0;
+    MPI_Allreduce(&local_cuda_failure, &cuda_failure, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    if (cuda_failure) {
+        if (local_cuda_failure) {
+            std::cerr << "cudaparosol: " << cuda_operation << " failed on MPI rank " << pid
+                      << " (CUDA device " << device_to_use << "): "
+                      << cudaGetErrorString(cuda_error) << '\n';
+        }
+        MPI_Finalize();
+        return 2;
+    }
+
+    PCOUT(MyPID, "CUDA device " << device_to_use << ": " << device.name
+          << " (sm_" << device.major << device.minor << ")\n");
 
 	// --worker: enter persistent worker mode instead of the one-shot
 	// argv-driven solve below. MPI/CUDA setup above already happened
@@ -634,7 +669,7 @@ int main( int argc, char* argv[]) {
 			MPI_Finalize(); return 2;
 		}
 	} catch (const std::exception &e) {
-		PCOUT(MyPID, "Preconditioner setup failed: " << e.what() << "\n");
+		PCOUT(MyPID, "cudaparosol: " << e.what() << "\n");
 		MPI_Finalize(); return 2;
 	}
 

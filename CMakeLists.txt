@@ -48,6 +48,21 @@ target_link_libraries(${PAROSOL_BIN} PUBLIC HDF5::HDF5)
 target_link_libraries(${PAROSOL_BIN} PUBLIC Eigen3::Eigen)
 
 
+option(PAROSOL_ENABLE_CUDA "Build the standalone CUDA ParOSol solver" OFF)
+if(PAROSOL_ENABLE_CUDA)
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    find_package(OpenMP REQUIRED COMPONENTS CXX)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    add_subdirectory(src/parOsol_cuda/src)
+
+    target_compile_options(cudaparosol PRIVATE
+        "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-Xcompiler=-fopenmp>")
+
+    install(TARGETS cudaparosol RUNTIME DESTINATION bin)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
