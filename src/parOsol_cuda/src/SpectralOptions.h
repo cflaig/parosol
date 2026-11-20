@@ -7,12 +7,15 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <memory>
+#include <vector>
 
 enum class SpectralMode { Original, Adaptive };
 struct SpectralOptions {
   SpectralMode mode = SpectralMode::Adaptive;
   int adaptiveMaxIterations = 100;
   bool maxWasSpecified = false;
+  std::shared_ptr<std::vector<std::string>> levelDiagnostics = std::make_shared<std::vector<std::string>>();
   int effectiveLimit() const {
     return mode == SpectralMode::Original ? 10 : adaptiveMaxIterations;
   }

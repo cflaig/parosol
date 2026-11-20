@@ -62,6 +62,9 @@ class PCGSolverMC: public Solver
      */
     virtual int Solve(DispVector &b,DispVector &x,cudaStream_t streamB,cudaStream_t streamX);
     virtual const std::string  Label () const;
+    // Optional common reference for temporal warm starts; zero retains the
+    // historical normalization by the initial residual.
+    void SetResidualReference(double norm) { _residualReference = norm; }
     void WaitOnStream(cudaStream_t waitOn,cudaStream_t stream);
 
   protected:
@@ -70,6 +73,7 @@ class PCGSolverMC: public Solver
     long _ldofs;
     long _maxIter;
     double _tol;
+    double _residualReference = 0.0;
     bool _verbose;
 	int _freq;
 	DispVector &x;

@@ -245,7 +245,7 @@ MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,
 	int MaxIters = spectral.effectiveLimit();
 
 	if (stype ==0) {
-		Chebyshev *tmpsmoother = new Chebyshev(_finemat,degree,true,*rFine,*eFine,gpuMM,MaxIters,0,0,ratio,spectral.mode == SpectralMode::Adaptive);
+		Chebyshev *tmpsmoother = new Chebyshev(_finemat,degree,true,*rFine,*eFine,gpuMM,MaxIters,0,0,ratio,spectral.mode == SpectralMode::Adaptive, spectral.levelDiagnostics.get(), level);
 		presmoother = tmpsmoother;
 		postsmoother = new Chebyshev(*tmpsmoother, false);
 	} else {

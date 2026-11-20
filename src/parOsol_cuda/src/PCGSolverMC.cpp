@@ -74,12 +74,12 @@ int PCGSolverMC::Solve(DispVector &b,DispVector &tx,cudaStream_t streamB,cudaStr
 	delta_new = res0;
 	res0 = sqrt(res0);
 	norm = sqrt(norm);
-	double resreal0 = norm;
+	double resreal0 = _residualReference > 0.0 ? _residualReference : norm;
 
 	if(_verbose) {
 		PCOUT(MyPID, "Initial Residuum: "<< resreal0 << std::endl)
 	}
-	while ( i < _maxIter && norm/resreal0 > _tol) {
+	while ( i < _maxIter && norm > 0.0 && norm/resreal0 > _tol) {
 		if (_verbose && i % _freq == 0) {
 			PCOUT(MyPID, "Iteration: "<< i << "\t Residuum precondioned: " << sqrt(delta_new)/res0)
 			PCOUT(MyPID, "\t Residuum: " << norm/resreal0 << std::endl)

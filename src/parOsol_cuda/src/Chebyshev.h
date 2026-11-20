@@ -53,7 +53,7 @@ class Chebyshev: public Solver
 	   * @param lmin Estimation of the smallest eigenvalue. (Default 0 -> means not used)
 	   * @param ratio Ratio of lmax/lmin. It is used to compute lmin.
 	   */
-    Chebyshev(StiffnessMatrix &M, int  degree, bool ZeroStart,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM, int maxit = 100,  double lmax = 0, double lmin = 0, double ratio=16, bool adaptive=true);
+    Chebyshev(StiffnessMatrix &M, int  degree, bool ZeroStart,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM, int maxit = 100,  double lmax = 0, double lmin = 0, double ratio=16, bool adaptive=true, std::vector<std::string> *diagnostics=nullptr, int remainingLevels=-1);
 	/**
 	 * @brief This constructor copies the configuration of the old chebyshev solver. ZeroStart must be extra set.
 	 *

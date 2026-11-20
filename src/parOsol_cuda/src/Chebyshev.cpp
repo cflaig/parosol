@@ -23,8 +23,9 @@
 #include "Chebyshev.h"
 #include "est_ev.h"
 #include "Jacobi.h"
+#include "SolveDiagnostics.h"
 
-Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM, int maxit, double lmax, double lmin, double ratio, bool adaptive):
+Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM, int maxit, double lmax, double lmin, double ratio, bool adaptive, std::vector<std::string> *diagnostics, int remainingLevels):
 	_mat(M),
 	_ldofs(M.GetNrDofs()),
 	_degree(degree),
@@ -50,6 +51,18 @@ Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart,DispVector &
 		//use ration if set
 		if (ratio >0)
 			_lmin = e.large/ratio;
+  if (diagnostics) {
+    std::ostringstream record;
+    record << "{\"level\":" << diagnostics->size() << ",\"remaining_levels\":" << remainingLevels
+           << ",\"lanczos_iterations\":" << e.iterations << ",\"cap\":" << maxit
+           << ",\"estimated_max\":" << DiagnosticNumber(e.large)
+           << ",\"lower_cutoff\":" << DiagnosticNumber(_lmin)
+           << ",\"upper_limit\":" << DiagnosticNumber(_lmax)
+           << ",\"estimate_converged\":" << (adaptive ? (e.converged ? "true" : "false") : "null")
+           << ",\"relative_ritz_residual\":" << (adaptive ? DiagnosticNumber(e.relativeResidual) : "null")
+           << ",\"relative_change\":" << (adaptive ? DiagnosticNumber(e.relativeChange) : "null") << '}';
+    diagnostics->push_back(record.str());
+  }
 		if (0 == _mat.GetPID())
 			std::cout << "lmax = " << _lmax << "   lmin = " << e.small << "   lmax used = " << _lmin  << std::endl;
 	}

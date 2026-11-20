@@ -162,8 +162,14 @@ class HDF5Printer {
 			t_double *m = new t_double[_grid.GetNrElem()];
 			t_double *s = new t_double[_grid.GetNrElem()];
 			t_double *eff = new t_double[_grid.GetNrElem()];
+			t_double *e_xx = new t_double[_grid.GetNrElem()];
+			t_double *e_yy = new t_double[_grid.GetNrElem()];
+			t_double *e_zz = new t_double[_grid.GetNrElem()];
+			t_double *e_xy = new t_double[_grid.GetNrElem()];
+			t_double *e_yz = new t_double[_grid.GetNrElem()];
+			t_double *e_xz = new t_double[_grid.GetNrElem()];
 
-			post.ComputeStressAndStrain(dispX,m,s,eff);
+			post.ComputeStressAndStrain(dispX,m,s,eff,e_xx,e_yy,e_zz,e_xy,e_yz,e_xz);
 			MPI_Barrier(MPI_COMM_WORLD);
 
 			Writer->Select("/Solution");
@@ -182,9 +188,23 @@ class HDF5Printer {
 			Writer->Write("SED",s,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
 
 			Writer->Write("EFF",eff,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
-			delete m;
-			delete s;
-			delete eff;
+
+			Writer->Write("e_xx",e_xx,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
+			Writer->Write("e_yy",e_yy,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
+			Writer->Write("e_zz",e_zz,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
+			Writer->Write("e_xy",e_xy,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
+			Writer->Write("e_yz",e_yz,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
+			Writer->Write("e_xz",e_xz,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
+
+			delete[] m;
+			delete[] s;
+			delete[] eff;
+			delete[] e_xx;
+			delete[] e_yy;
+			delete[] e_zz;
+			delete[] e_xy;
+			delete[] e_yz;
+			delete[] e_xz;
 
 		}
 

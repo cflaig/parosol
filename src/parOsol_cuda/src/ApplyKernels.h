@@ -74,7 +74,8 @@ public:
 	void RestrictK(t_double *dev_coarse,t_double *dev_fine,cudaStream_t stream = 0);
 	void ProlongateK(t_double *dev_coarse,t_double *dev_fine,cudaStream_t stream = 0);
 
-	void PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,t_double poisson_ratio,cudaStream_t stream = 0);
+	void PostProcessK(t_double *dev_x, t_double *dev_y, t_double *g_num, t_double *dev_strain,
+	                  t_double poisson_ratio, cudaStream_t stream = 0);
 
 	ElementOffsets _elementOffsets;
 	GPUMemoryManager *_gpuMM;
@@ -137,7 +138,8 @@ public:
 	void RestrictK(t_double *dev_coarse,t_double *dev_fine,cudaStream_t stream = 0);
 	void ProlongateK(t_double *dev_coarse,t_double *dev_fine,cudaStream_t stream = 0);
 
-	void PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,t_double poisson_ratio,cudaStream_t stream = 0);
+	void PostProcessK(t_double *dev_x, t_double *dev_y, t_double *g_num, t_double *dev_strain,
+	                  t_double poisson_ratio, cudaStream_t stream = 0);
 
 	HashMask _hashMask;
 	GPUMemoryManager *_gpuMM;

@@ -75,23 +75,34 @@ eig est_ev(StiffnessMatrix &_mat, Solver &_prec, int maxit,DispVector &r,DispVec
 
 		i++;
 	}
-	QL_Tridiagonal_Symmetric_Matrix(dia_T, off_T,i,30);
-	double l_min=dia_T[0];
-	double l_max=dia_T[0];
-	for(int ii = 1; ii < i; ii++) {
-	if (dia_T[ii] < l_min)
-		l_min = dia_T[ii];
-	if (dia_T[ii] > l_max)
-		l_max = dia_T[ii];
+	double l_min, l_max;
+	if (i == 0) {
+			// Degenerate/near-empty level: the very first residual check
+			// already satisfied tolerance (or produced 0/0 = NaN, which
+			// also fails the "> _tol" check), so no Lanczos iterations
+			// ran. dia_T/off_T hold no data here -- calling
+			// QL_Tridiagonal_Symmetric_Matrix with n=0 writes to
+			// p_off[-1] (heap corruption, surfaces later as "free():
+			// invalid pointer"), and dia_T[0] would be read
+			// uninitialised. Nothing to smooth at this level; fall back
+			// to a trivial eigenvalue bound.
+			l_min = l_max = 1.0;
+	} else {
+			QL_Tridiagonal_Symmetric_Matrix(dia_T, off_T,i,30);
+			l_min = l_max = dia_T[0];
+			for(int ii = 1; ii < i; ii++) {
+			if (dia_T[ii] < l_min)
+				l_min = dia_T[ii];
+			if (dia_T[ii] > l_max)
+				l_max = dia_T[ii];
+			}
 	}
-
-
 	eig ret;
 	ret.iterations=i;
 	ret.large=l_max;
 	ret.small=l_min;
-	delete dia_T;
-	delete off_T;
+	delete[] dia_T;
+	delete[] off_T;
 	delete s;
 	return ret;
 }

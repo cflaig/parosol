@@ -43,7 +43,8 @@ class PostProcess
 		//! ElementByElementMatrix destructor
 		~PostProcess() { }
 
-		void ComputeStressAndStrain(DispVector &disp,t_double *VonMises,t_double *SED,t_double *eff) {
+		void ComputeStressAndStrain(DispVector &disp,t_double *VonMises,t_double *SED,t_double *eff,
+				t_double *e_xx,t_double *e_yy,t_double *e_zz,t_double *e_xy,t_double *e_yz,t_double *e_xz) {
 			//fetch the nodes of the neighbours
 			disp.PrepareIn(0);
 			_grid.Recv_import_Ghost(disp._syncData);
@@ -60,6 +61,12 @@ class PostProcess
 				VonMises[i] = 0.0;
 				SED[i] = 0.0;
 				eff[i] = 0.0;
+				e_xx[i] = 0.0;
+				e_yy[i] = 0.0;
+				e_zz[i] = 0.0;
+				e_xy[i] = 0.0;
+				e_yz[i] = 0.0;
+				e_xz[i] = 0.0;
 			}
 
 
@@ -77,10 +84,23 @@ class PostProcess
 			CCS(cudaMalloc((void**) &dev_coord,24*sizeof(t_double)),"tesfa");
 			CCS(cudaMemcpy(dev_coord,coord,24*sizeof(t_double),cudaMemcpyHostToDevice),"safew");
 
-			_grid._gpuGrid->PostProcessK(disp.GetVector(),dVec->GetVector(),dev_coord,_grid.poisons_ratio);
+			// Strain tensor output: 6 Voigt components/node-slot, mirroring dVec's
+			// 3-wide layout (2x sized so offsets[0]*2 can address 6 contiguous doubles
+			// per element, same indexing base the kernels already compute).
+			// Tracked under Buffer (not DispVec, to avoid DispVec's same-level
+			// double-accounting quirk in GPUMemoryManager).
+			t_double *dev_strain;
+			CCS(cudaMalloc((void**) &dev_strain,2*disp._syncData.gpuVecSize*sizeof(t_double)),"strain output");
+			disp._gpuMM->AllocateMemory(Buffer,disp._syncData.level,2*disp._syncData.gpuVecSize*sizeof(t_double));
+
+			_grid._gpuGrid->PostProcessK(disp.GetVector(), dVec->GetVector(), dev_coord,
+			                            dev_strain, _grid.poisons_ratio);
 
 			t_double *res = new t_double[disp._syncData.gpuVecSize];
 			dVec->CopyToExtCpuVector(res);
+
+			t_double *strainRes = new t_double[2*disp._syncData.gpuVecSize];
+			CCS(cudaMemcpy(strainRes,dev_strain,2*disp._syncData.gpuVecSize*sizeof(t_double),cudaMemcpyDeviceToHost),"strain D2H");
 
 			int c = 0;
 			int r = 0;
@@ -89,14 +109,24 @@ class PostProcess
 					VonMises[r] = res[c*3];
 					SED[r] = res[c*3 + 1];
 					eff[r] = sqrt(2*SED[r]/(1000*iter->w));
+					// index order matches CPU's fem.cpp:174-177 (e13/e23 swap vs. naive xy,yz,xz reading)
+					e_xx[r] = strainRes[c*6];
+					e_yy[r] = strainRes[c*6 + 1];
+					e_zz[r] = strainRes[c*6 + 2];
+					e_xy[r] = strainRes[c*6 + 3];
+					e_xz[r] = strainRes[c*6 + 4];
+					e_yz[r] = strainRes[c*6 + 5];
 					r++;
 				}
 				c++;
 			}
 
 			delete dVec;
-			delete res;
-			delete coord;
+			delete[] res;
+			delete[] strainRes;
+			disp._gpuMM->FreeMemory(Buffer,disp._syncData.level);
+			CCS(cudaFree(dev_strain),"free strain output");
+			delete[] coord;
 			CCS(cudaFree(dev_coord),"dfas");
 		}
 

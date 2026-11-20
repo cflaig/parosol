@@ -21,6 +21,7 @@
 #define THREADS_PER_BLOCK 256
 
 #include <iostream>
+#include <chrono>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
@@ -36,6 +37,7 @@ void SetLocalStiffnessMatrix(t_double *smat,int offset) {
 }
 
 void SetRpLookupTable() {
+	static bool first_module_operation = true;
 	std::vector<Off8> table;
 	table.push_back(Off8(1,0,0,0));
 	table.push_back(Off8(2,1,0,0));
@@ -45,7 +47,16 @@ void SetRpLookupTable() {
 	table.push_back(Off8(4,1,4,5));
 	table.push_back(Off8(4,3,4,7));
 	table.push_back(Off8(8,0,0,0));
+	const auto start = std::chrono::steady_clock::now();
 	CCS(cudaMemcpyToSymbol(rpLookupTable,table.data(),8*sizeof(Off8),0,cudaMemcpyHostToDevice),"SetRpLookupTable 1");
+	if (first_module_operation) {
+		CCS(cudaDeviceSynchronize(),"SetRpLookupTable first-module sync");
+		const auto elapsed = std::chrono::duration<double>(
+			std::chrono::steady_clock::now() - start).count();
+		std::cerr << "[CUDA_STARTUP] first CUDA module operation ready in "
+		          << elapsed << " s\n";
+		first_module_operation = false;
+	}
 
 }
 
@@ -1246,7 +1257,8 @@ void inline __device__ invar(double *stress, double &sigma, double &dsbar, doubl
     return;
 }
 
-__global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_double *g_num,t_double *x,t_double *y, t_double poisson_ratio) {
+__global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_double *g_num,t_double *x,t_double *y,t_double *strainOut,
+                                      t_double poisson_ratio) {
 	//nip = 1;
 	//nst = 6;
 	//ndim = 3;
@@ -1323,14 +1335,25 @@ __global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_doub
 	y[offsets[0]] = stress[(nst + 1)*nip - 1];
 	y[offsets[0] + 1] = strain[(nst + 1)*nip - 1];
 
+	// Full strain tensor (6 Voigt components; nip=1 so the Gauss-point index
+	// is always 0, i.e. strain[n] == strain[ACCESS(n,0,nst+1,nip)]) into the
+	// 6-wide-per-node-slot buffer allocated in Postprocessing.h. Base index
+	// doubled vs. y's 3-wide indexing to match dev_strain's 2x size.
+	t_index strainBase = 2*offsets[0];
+	for (int n = 0;n < nst;n++) {
+		strainOut[strainBase + n] = strain[n];
+	}
+
 }
 
-void GPUGridHash::PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,t_double poisson_ratio,cudaStream_t stream) {
+void GPUGridHash::PostProcessK(t_double *dev_x, t_double *dev_y, t_double *g_num, t_double *dev_strain,
+                               t_double poisson_ratio, cudaStream_t stream) {
 	int blockcount = _applyStarts/128 + 1;
-	PostProcessHashKernel<<<blockcount,128,0,stream>>>(_applyStarts,_hashMask,g_num,dev_x,dev_y,poisson_ratio);
+	PostProcessHashKernel<<<blockcount,128,0,stream>>>(_applyStarts,_hashMask,g_num,dev_x,dev_y,dev_strain,poisson_ratio);
 }
 
-__global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets elementOffsets,t_double *g_num,t_double *x,t_double *y, t_double poisson_ratio) {
+__global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets elementOffsets,t_double *g_num,t_double *x,t_double *y,t_double *strainOut,
+                                      t_double poisson_ratio) {
 	//nip = 1;
 	//nst = 6;
 	//ndim = 3;
@@ -1403,10 +1426,15 @@ __global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets element
 	y[offsets[0]] = stress[(nst + 1)*nip - 1];
 	y[offsets[0] + 1] = strain[(nst + 1)*nip - 1];
 
+	t_index strainBase = 2*offsets[0];
+	for (int n = 0;n < nst;n++) {
+		strainOut[strainBase + n] = strain[n];
+	}
+
 }
 
-void GPUGridOffset::PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,t_double poisson_ratio,cudaStream_t stream) {
+void GPUGridOffset::PostProcessK(t_double *dev_x, t_double *dev_y, t_double *g_num, t_double *dev_strain,
+                               t_double poisson_ratio, cudaStream_t stream) {
 	int blockcount = _applyStarts/128 + 1;
-	PostProcessOffsetKernel<<<blockcount,128,0,stream>>>(_applyStarts,_elementOffsets,g_num,dev_x,dev_y,poisson_ratio);
+	PostProcessOffsetKernel<<<blockcount,128,0,stream>>>(_applyStarts,_elementOffsets,g_num,dev_x,dev_y,dev_strain,poisson_ratio);
 }
-

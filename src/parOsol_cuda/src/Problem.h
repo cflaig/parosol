@@ -153,7 +153,7 @@ class Problem
 			b->CopyFromExtCpuVector(tmp);
 
 			double res = (double) _mat.dot(*b);
-			delete tmp;
+			delete[] tmp;
 			return sqrt(res);
 		}
 
