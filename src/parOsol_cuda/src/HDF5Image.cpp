@@ -25,6 +25,7 @@
 #include <string>
 #include <iostream>
 #include <map>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <omp.h>
@@ -50,7 +51,7 @@ void HDF5Image::ReadBC(HDF5_GReader &reader, std::string s,std::vector<unsigned 
     float *bcdisp = new float[my_bc_count];
     reader.Read((s+"_Values").c_str(), bcdisp, &my_bc_offset, &my_bc_count, 1);
 
-    short *bccoords = new short[my_bc_count*4];
+    unsigned short *bccoords = new unsigned short[my_bc_count*4];
     reader.Read((s+"_Coordinates").c_str(), bccoords, global_dims_of_hdf5[0], my_bc_count, 4, my_bc_offset);
     bcitem tmp;
     unsigned int d =0;
@@ -176,74 +177,33 @@ int HDF5Image::Scan(BaseGrid* grid)
     grid->ldim[i] = my_count[2-i];
   }
 
-    long imagesize = grid->ldim[0]*grid->ldim[1]*grid->ldim[2];
-    float *image = new float[imagesize];
-    timer.Start("Image");
+  timer.Start("Image");
+  const hsize_t depth = my_count[0], height = my_count[1], width = my_count[2];
+  const hsize_t row_stride = width + 1;
+  const hsize_t plane_stride = (height + 1) * row_stride;
+  grid->_grid = new double[(depth + 1) * plane_stride]{};  // zero padding on the three upper faces
 
-    hsize_t tMycount0 = my_count[0];
-    hsize_t newMycount0 = (hsize_t) std::ceil((double) my_count[0]/4.0);
-    my_count[0] = newMycount0;
-    hsize_t lMycount0 = tMycount0 - 3*my_count[0];
-    long imOffset = 0;
-
-    imagesize = (grid->ldim[0] + 1)*(grid->ldim[1] + 1)*(grid->ldim[2] + 1);
-    grid->_grid = new double[imagesize];
-
-    hsize_t myCount2[3];
-    myCount2[0] = my_count[0];
-    myCount2[1] = my_count[1];
-    myCount2[2] = my_count[2];
-
-    long e = 0;
-    long j = 0;
-
-    OctreeKey_Lookup KeyGen;
-
-    for (int i = 0;i < 4;i++) {
-    	if (i == 3) {
-			my_count[0] = lMycount0;
-		}
-		reader.Read("Image",image + imOffset,my_offset,my_count,3);
-		my_offset[0] += newMycount0;
-		imOffset += my_count[0]*my_count[1]*my_count[2];
-
-		if (i == 3) {
-			myCount2[0] = lMycount0;
-		}
-		for (uint x = 0;x < myCount2[0];x++) {
-			for (uint y = 0;y < myCount2[1] + 1;y++) {
-				if (y == myCount2[1]) {
-					for (uint z = 0;z < myCount2[2] + 1;z++) {
-						grid->_grid[j] = 0;
-						j++;
-					}
-				} else {
-					for (uint z = 0;z < myCount2[2] + 1;z++) {
-						if (z == myCount2[2]) {
-							grid->_grid[j] = 0;
-						} else {
-							grid->_grid[j] = image[e];
-							e++;
-						}
-						j++;
-					}
-				}
-			}
-		}
-		if (i == 3) {
-			for (uint y = 0;y < my_count[1] + 1;y++) {
-				for (uint z = 0;z < my_count[2] + 1;z++) {
-					grid->_grid[j] = 0;
-					j++;
-				}
-			}
-		}
+  // Every MPI rank participates in four reads, including ranks with fewer than four slices.
+  constexpr hsize_t reads = 4;
+  const hsize_t max_planes = (depth + reads - 1) / reads;
+  std::vector<float> slab(std::max<hsize_t>(1, max_planes * height * width));
+  hsize_t first_plane = 0;
+  for (hsize_t part = 0; part < reads; ++part) {
+    my_count[0] = depth / reads + (part < depth % reads);
+    reader.Read("Image", slab.data(), my_offset, my_count, 3);
+    for (hsize_t z = 0; z < my_count[0]; ++z) {
+      for (hsize_t y = 0; y < height; ++y) {
+        const hsize_t source = (z * height + y) * width;
+        const hsize_t target = (first_plane + z) * plane_stride + y * row_stride;
+        std::copy_n(slab.data() + source, width, grid->_grid + target);
+      }
     }
-
-    t_timing elapsed_time = timer.ElapsedTime("Image");
-    PCOUT(MyPID, "Time for Reading the Image: " << COUTTIME(elapsed_time) << "s\n");
-
-    delete[] image;
+    my_offset[0] += my_count[0];
+    first_plane += my_count[0];
+  }
+  timer.Stop("Image");
+  t_timing elapsed_time = timer.ElapsedTime("Image");
+  PCOUT(MyPID, "Time for Reading the Image: " << COUTTIME(elapsed_time) << "s\n");
 
   timer.Start("BC");
 

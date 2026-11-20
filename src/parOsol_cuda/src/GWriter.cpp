@@ -24,6 +24,7 @@
 #include "GWriter.hpp"
 #include <unistd.h> //fsync
 #include <cstring>
+#include <stdexcept>
 
 //#define H5_HAVE_PARALLEL
 //#define __QK_USER__
@@ -358,16 +359,29 @@ int HDF5_GWriter::Write(const std::string& name, hid_t type, const void* data, l
   }
 
   hid_t dataset = H5Dopen(group, name.c_str(), H5P_DEFAULT);
+  if (dataset >= 0) {
+    // A previous solve in this file may have had a different voxel mask.
+    const hid_t old_space = H5Dget_space(dataset);
+    const hid_t old_type = H5Dget_type(dataset);
+    const bool reusable = H5Sextent_equal(old_space, dataspace) > 0 && H5Tequal(old_type, type) > 0;
+    H5Sclose(old_space);
+    H5Tclose(old_type);
+    if (!reusable) {
+      H5Dclose(dataset);
+      H5Ldelete(group, name.c_str(), H5P_DEFAULT);
+      dataset = -1;
+    }
+  }
   if (dataset < 0)
     dataset = H5Dcreate(group, name.c_str(), type, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   offset[0] = my_offset;
-  H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, stride,  my_dims, NULL);
-
-  H5Dwrite( dataset, type, memspace, dataspace, plist, data );
+  const herr_t selected = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, stride, my_dims, NULL);
+  int failed = dataset < 0 || selected < 0 || H5Dwrite(dataset, type, memspace, dataspace, plist, data) < 0;
 
   H5Sclose(memspace);
   H5Sclose(dataspace);
-  H5Dclose(dataset);
+  if (dataset >= 0)
+    H5Dclose(dataset);
 
 #ifdef SEQUENTIAL_HDF5
   Close();
@@ -376,7 +390,9 @@ int HDF5_GWriter::Write(const std::string& name, hid_t type, const void* data, l
   if (mpi_rank != mpi_size-1)
     MPI_Send(&i, 1, MPI_INT, mpi_rank+1, 0, comm);
 #endif
-
+  MPI_Allreduce(MPI_IN_PLACE, &failed, 1, MPI_INT, MPI_MAX, comm);
+  if (failed)
+    throw std::runtime_error("Could not write " + groupname + "/" + name);
   return len;
 }
 

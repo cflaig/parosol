@@ -487,6 +487,12 @@ hid_t HDF5_GReader::getNativeType(short, hsize_t i) {
   return H5Tarray_create(H5T_NATIVE_SHORT, 1, &i);
 }
 
+hid_t HDF5_GReader::getNativeType(unsigned short, hsize_t i) {
+  if (i == 1)
+    return H5T_NATIVE_USHORT;
+  return H5Tarray_create(H5T_NATIVE_USHORT, 1, &i);
+}
+
 hid_t HDF5_GReader::getNativeType(const std::string&, hsize_t i) {
   hid_t type = H5Tcopy(H5T_C_S1);
   H5Tset_size(type, 32);

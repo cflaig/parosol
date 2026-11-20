@@ -92,7 +92,7 @@ class HDF5Printer {
 				coord[i++] = z*res[2];
 			}
 			Writer->Write(dset,coord,_grid.GetNrNodesGlobal(),_grid.GetNrPrivateNodes(),3,_grid.GetNodeOffset());
-			delete coord;
+			delete[] coord;
 
 		}
 
@@ -133,7 +133,7 @@ class HDF5Printer {
 
 			Writer->Write(dset,elems,_grid.GetNrElemGlobal(),_grid.GetNrElem(),8,_grid.GetElemOffset());
 			delete[] elems;
-			delete ind;
+			delete[] ind;
 
 		}
 		
@@ -148,7 +148,7 @@ class HDF5Printer {
 			}
             MPI_Barrier(MPI_COMM_WORLD);
             Writer->Write("Emoduli",emoduli,_grid.GetNrElemGlobal(),_grid.GetNrElem(),1,_grid.GetElemOffset());
-            delete emoduli;
+            delete[] emoduli;
 
         }
 

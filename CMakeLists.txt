@@ -61,6 +61,7 @@ if(PAROSOL_ENABLE_CUDA)
         "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-Xcompiler=-fopenmp>")
 
     install(TARGETS cudaparosol RUNTIME DESTINATION bin)
+    install(PROGRAMS tools/parosol_cuda.py DESTINATION bin RENAME parosol-cuda)
 endif()
 
 include(CTest)

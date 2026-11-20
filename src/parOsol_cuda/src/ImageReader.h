@@ -47,10 +47,10 @@ private:
 
 //some tools to read in
 struct bcitem {
-    bcitem(short lx=0, short ly=0, short lz=0, short ld=0):x(lx), y(ly), z(lz), d(ld)
+    bcitem(unsigned short lx=0, unsigned short ly=0, unsigned short lz=0, unsigned short ld=0):x(lx), y(ly), z(lz), d(ld)
     {
     }
-    short x,y,z,d;
+    unsigned short x,y,z,d;
 
     bool operator<(const bcitem &rhs) const {
         if (z < rhs.z)
