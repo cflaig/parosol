@@ -7,6 +7,7 @@
 * [Visualizing results](visualize.md)
 * [File Format](file_format.md)
 * [Building and extending ParOSol](building.md)
+* [CUDA ParOSol](cuda.md)
 
 ## Introduction ##
 

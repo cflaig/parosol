@@ -33,3 +33,15 @@ endforeach()
 add_test(NAME eigen_iterations_cli COMMAND ${CMAKE_COMMAND}
     -DPAROSOL=$<TARGET_FILE:parosol> -P ${CMAKE_CURRENT_SOURCE_DIR}/eigen_iterations_cli_test.cmake)
 set_tests_properties(eigen_iterations_cli PROPERTIES TIMEOUT 120)
+
+if(PAROSOL_ENABLE_CUDA)
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        execute_process(COMMAND "${Python3_EXECUTABLE}" -c "import h5py; import numpy"
+            RESULT_VARIABLE parosol_python_hdf5 OUTPUT_QUIET ERROR_QUIET)
+        if(parosol_python_hdf5 EQUAL 0)
+            add_test(NAME cuda_hdf5_adapter COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/test_cuda_hdf5_adapter.py")
+        endif()
+    endif()
+endif()
