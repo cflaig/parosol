@@ -25,7 +25,8 @@
 #include <string>
 #include <iostream>
 #include <map>
-#include <math.h>
+#include <cmath>
+#include <stdexcept>
 #include <omp.h>
 #include <sys/time.h>
 
@@ -113,6 +114,27 @@ int HDF5Image::Scan(BaseGrid* grid)
       exit(-1);
   }
 
+  double poisson_ratio = 0.0;
+  double voxel_size = 0.0;
+  const int invalid_metadata[] = {
+    reader.Read("Poisons_ratio", poisson_ratio) != 1 ||
+      !(0.0 <= poisson_ratio && poisson_ratio < 0.5),
+    reader.Read("Voxelsize", voxel_size) != 1 ||
+      !std::isfinite(voxel_size) || voxel_size <= 0.0
+  };
+  int invalid_on_any_rank[2] = {};
+  MPI_Allreduce(invalid_metadata, invalid_on_any_rank, 2, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  if (invalid_on_any_rank[0]) {
+    throw std::invalid_argument("/Image_Data/Poisons_ratio must be a single number in [0, 0.5)");
+  }
+  if (invalid_on_any_rank[1]) {
+    throw std::invalid_argument("/Image_Data/Voxelsize must be a single positive finite number");
+  }
+  grid->poisons_ratio = poisson_ratio;
+  for (int i = 0; i < 3; ++i) {
+    grid->res[i] = voxel_size;
+  }
+
   reader.GetSizeOfDataset("Image",global_dims_of_hdf5, 3);
 
   PCOUT(MyPID, "Image has following dimension: " << global_dims_of_hdf5[0] << " " << global_dims_of_hdf5[1] << " " << global_dims_of_hdf5[2] << std::endl;)
@@ -159,7 +181,7 @@ int HDF5Image::Scan(BaseGrid* grid)
     timer.Start("Image");
 
     hsize_t tMycount0 = my_count[0];
-    hsize_t newMycount0 = (hsize_t) ceil((double) my_count[0]/4.0);
+    hsize_t newMycount0 = (hsize_t) std::ceil((double) my_count[0]/4.0);
     my_count[0] = newMycount0;
     hsize_t lMycount0 = tMycount0 - 3*my_count[0];
     long imOffset = 0;
@@ -230,12 +252,6 @@ int HDF5Image::Scan(BaseGrid* grid)
     ReadBC(reader, std::string("Loaded_Nodes"), grid->loaded_nodes_coordinates, grid->loaded_nodes_values);
     elapsed_time = timer.ElapsedTime("BC");
     PCOUT(MyPID, "Time for Reading BC: " << COUTTIME(elapsed_time) << "s\n");
-    double res;
-    reader.Read("Voxelsize", res);
-    for(int i=0; i<3; i++) {
-      grid->res[i] = res;
-    }
-    reader.Read("Poisons_ratio", grid->poisons_ratio);
 
    PCOUT(MyPID, "\nHDF5 ImageReader: \n")
    PCOUT(MyPID, "  global Dimension: " << grid->gdim[0] << " " << grid->gdim[1] << " " << grid->gdim[2] << "\n")

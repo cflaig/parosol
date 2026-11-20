@@ -159,13 +159,14 @@ private:
 			UnLock(tmpoffset);
 
 			t_double *ind = new t_double[_grid.GetNrDofs()];
-			_grid.Recv_import_Ghost(ind);
+			// Initialize owned IDs before posting the ghost receive.
 			for (uint i = 0;i < _grid.GetNrDofs();i++) {
 				ind[i] = 0.0;
 			}
-			for (unsigned int i = 0; i < _grid.GetNrNodes(); i++) {
+			for (unsigned int i = 0; i < _grid.GetNrPrivateNodes(); i++) {
 				ind[3*i] = i + offset;
 			}
+			_grid.Recv_import_Ghost(ind);
 			_grid.Send_import_Ghost(ind);
 			_grid.Wait_import_Ghost();
 

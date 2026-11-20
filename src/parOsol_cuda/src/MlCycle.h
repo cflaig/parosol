@@ -23,6 +23,7 @@
 #include "Solver.h"
 #include "JacobiSmoother.h"
 #include "Chebyshev.h"
+#include "SpectralOptions.h"
 #include "OctreeGrid.h"
 #include "MlOctreeGrid.h"
 #include "MlLevelCG.h"
@@ -56,7 +57,7 @@ class MlCycle : public Solver
 	   * @param ratio Ration of the Eigenvlaue. See Chebyshev smoother
        * @param w weight parameter of the Jacobismoother
 	   */
-		MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,Timer *timing,GPUGridBuilder<T> *gpuGridBuilder,GPUMemoryManager *gpuMM,bool switching = false,int degree =8, int level = -1, int stype =0, double ratio=16, double w=0.61);
+		MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,Timer *timing,GPUGridBuilder<T> *gpuGridBuilder,GPUMemoryManager *gpuMM,bool switching = false,int degree =8, int level = -1, int stype =0, double ratio=16, double w=0.61, SpectralOptions spectral = SpectralOptions{});
 
 		~MlCycle()
 		{
@@ -160,7 +161,7 @@ class MlCycle : public Solver
 };
 
 	template <class T>
-MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,Timer *timing,GPUGridBuilder<T> *gpuGridBuilder,GPUMemoryManager *gpuMM,bool switching,int degree, int level, int stype, double ratio, double w): _finegrid(finegrid), _finemat(mat), _level(level), _w(w) {
+MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,Timer *timing,GPUGridBuilder<T> *gpuGridBuilder,GPUMemoryManager *gpuMM,bool switching,int degree, int level, int stype, double ratio, double w, SpectralOptions spectral): _finegrid(finegrid), _finemat(mat), _level(level), _w(w) {
 
 	_timing = timing;
 	Solver::_gpuMemoryManager = gpuMM;
@@ -199,7 +200,7 @@ MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,
 		}
 		_solver = new MlLevelCG(*_coarsemat,gpuMM);
 	} else {
-		_solver = new MlCycle(*_coarsegrid,*_coarsemat,_timing,gpuGridBuilder,gpuMM,switching,degree,level - 1,stype,ratio,w);
+		_solver = new MlCycle(*_coarsegrid,*_coarsemat,_timing,gpuGridBuilder,gpuMM,switching,degree,level - 1,stype,ratio,w,spectral);
 	}
 
 	if (finestSyncData == 0) {
@@ -241,10 +242,10 @@ MlCycle<T>::MlCycle(OctreeGrid<T> &finegrid, GenericMatrix<OctreeGrid<T> > &mat,
 	eCoarse->Memset(0.0);
 
 	// setting up cheb
-	int MaxIters = 10;
+	int MaxIters = spectral.effectiveLimit();
 
 	if (stype ==0) {
-		Chebyshev *tmpsmoother = new Chebyshev(_finemat,degree,true,*rFine,*eFine,gpuMM,MaxIters,0,0,ratio);
+		Chebyshev *tmpsmoother = new Chebyshev(_finemat,degree,true,*rFine,*eFine,gpuMM,MaxIters,0,0,ratio,spectral.mode == SpectralMode::Adaptive);
 		presmoother = tmpsmoother;
 		postsmoother = new Chebyshev(*tmpsmoother, false);
 	} else {

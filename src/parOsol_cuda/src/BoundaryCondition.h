@@ -35,17 +35,13 @@
 class BoundaryCondition {
 
 	public:
-		//!Constructor
-		BoundaryCondition() {
-			devFixedNodesInd = 0;
-			devFixedNodes = 0;
-			devLoadedNodesInd = 0;
-			devLoadedNodes = 0;
-		}
-		//!Destructor
 		~BoundaryCondition() {
+			// Input validation can unwind the grid before MoveDataToGpu.
+			if (_gpuMM == nullptr) {
+				return;
+			}
 			if (_switching) {
-				delete storedDisp;
+				delete[] storedDisp;
 			} else {
 				_gpuMM->FreeMemory(BCond,_level);
 				CCS(cudaFree(devStoredDisp),"~BoundaryCondition 1");
@@ -68,17 +64,17 @@ class BoundaryCondition {
 		std::vector<t_double> LoadedNodes;
 		std::vector<t_boundary_node> LoadedKeys;
 
-		t_index *devFixedNodesInd;
-		t_double *devFixedNodes;
-		t_index *devLoadedNodesInd;
-		t_double *devLoadedNodes;
+		t_index *devFixedNodesInd = nullptr;
+		t_double *devFixedNodes = nullptr;
+		t_index *devLoadedNodesInd = nullptr;
+		t_double *devLoadedNodes = nullptr;
 
-		t_double *devStoredDisp;
-		t_double *storedDisp;
+		t_double *devStoredDisp = nullptr;
+		t_double *storedDisp = nullptr;
 
-		int _level;
-		bool _switching;
-		GPUMemoryManager *_gpuMM;
+		int _level = 0;
+		bool _switching = false;
+		GPUMemoryManager *_gpuMM = nullptr;
 
 		//! \brief Generate BC
 		/*! It reads in the boundary nodes list in and converts it to the local data structure.  

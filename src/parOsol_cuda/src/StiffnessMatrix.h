@@ -82,6 +82,8 @@ public:
    * @return PID
    */
   virtual int GetPID()=0;
+
+  virtual void SetVectorRandom(DispVector &x) = 0;
   
   virtual BoundaryCondition & GetBC() = 0;
 

@@ -1249,7 +1249,7 @@ bool Refine_Buckets(std::set<t_octree_key> &bucketsboarder, std::vector<t_octree
 				
 
 				MPI_Gatherv(sending_addr, sending_count, MPI_BYTE,
-							&newgrid[0], (int*) &recv_count[0], (int*) &recv_pos[0], MPI_BYTE,
+							newgrid.data(), (int*) &recv_count[0], (int*) &recv_pos[0], MPI_BYTE,
 							recv_cpu, MPI_COMM_WORLD);
 			}
 
@@ -1301,6 +1301,9 @@ bool Refine_Buckets(std::set<t_octree_key> &bucketsboarder, std::vector<t_octree
 
 			while (i < newgrid.size() && newgrid[i].w <=0)
 				i++;
+			// Cyril Flaig 569362ff: no active node exists on this partition.
+			if (i == newgrid.size())
+				return;
 			if (i >0) {
 				newgrid[0] = newgrid[i];
 			}

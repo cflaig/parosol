@@ -24,7 +24,7 @@
 #include "est_ev.h"
 #include "Jacobi.h"
 
-Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM, int maxit, double lmax, double lmin, double ratio):
+Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM, int maxit, double lmax, double lmin, double ratio, bool adaptive):
 	_mat(M),
 	_ldofs(M.GetNrDofs()),
 	_degree(degree),
@@ -39,8 +39,12 @@ Chebyshev::Chebyshev(StiffnessMatrix &M, int degree, bool ZeroStart,DispVector &
 	idia = _mat.dia;
 	//idia2 = _mat.dia2;
 	if (maxit != 0) {
-		Jacobi prec(_mat,gpuMM);
-		eig e = est_ev(_mat, prec, maxit,z,p,gpuMM);
+		eig e;
+		if (adaptive) e = EstimateChebyshevSpectrum(_mat, maxit, z, p, gpuMM);
+		else {
+			Jacobi prec(_mat,gpuMM);
+			e = est_ev(_mat, prec, maxit, z, p, gpuMM);
+		}
 		_lmax = e.large*1.05;
 		_lmin = e.small;
 		//use ration if set

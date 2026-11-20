@@ -18,6 +18,7 @@
  */
 
 #include <iostream>
+#include <exception>
 
 #include <mpi.h>
 #include <omp.h>
@@ -56,7 +57,7 @@ template <class T> class MlOctreeGrid;
 template <class T>
 void print(GenericMatrix<T> &matr, Problem<T> &problem, std::string file, int MyPID,GPUMemoryManager *gpuMM);
 
-int main( int argc, char* argv[]) {
+int main( int argc, char* argv[]) try {
 
 	int pid,psize,MyPID;
 	int provided;
@@ -91,10 +92,12 @@ int main( int argc, char* argv[]) {
     int level = 6, degree = 10;
     double tol = 1e-6;
     bool switching = false;
+    SpectralOptions spectral;
 
     std::string usage = std::string("usage: ") + argv[0]
                       + std::string(" [--level arg (6)]")
                       + std::string(" [--tol arg (1e-6)]")
+                      + std::string(" [--eigen-max-iterations 2..1000]")
     				  + std::string(" [--switch arg (0)]")
                       + std::string(" filename\n"); 
 	
@@ -114,6 +117,20 @@ int main( int argc, char* argv[]) {
         } else if (param.compare("--tol") == 0) {
             i++;
             tol = atof(argv[i]);
+        } else if (param == "--eigen-max-iterations" || param.rfind("--eigen-max-iterations=", 0) == 0) {
+            const auto separator = param.find('=');
+            std::string value;
+            if (separator != std::string::npos) {
+                value = param.substr(separator + 1);
+            } else if (i + 1 < argc) {
+                value = argv[++i];
+            }
+            if (spectral.maxWasSpecified || !ParseSpectralMaximum(value, spectral.adaptiveMaxIterations)) {
+                PCOUT(MyPID, "--eigen-max-iterations requires exactly one integer from 2 to 1000\n");
+                MPI_Finalize();
+                return 2;
+            }
+            spectral.maxWasSpecified = true;
         } else if (param.compare("--switch") == 0) {
         	i++;
         	switching = atoi(argv[i]);
@@ -185,7 +202,8 @@ int main( int argc, char* argv[]) {
     //Construct the preconditioner
 	timer.Start("Prec");
 
-	MlCycle<OctreeKey_Lookup>  prec(grid, matr,&reproTimer,&gridBuilder,&gpuMemoryManager,switching, degree, level-1, 0, 16,0);
+	PCOUT(MyPID, "Eigen estimator: " << SpectralModeName(spectral.mode) << " limit=" << spectral.effectiveLimit() << std::endl);
+	MlCycle<OctreeKey_Lookup>  prec(grid, matr,&reproTimer,&gridBuilder,&gpuMemoryManager,switching, degree, level-1, 0, 16,0,spectral);
 	PCOUT(MyPID, "Prec done\n");
 	timer.Stop("Prec");
 	elapsed_time = timer.ElapsedTime("Prec");
@@ -244,6 +262,15 @@ int main( int argc, char* argv[]) {
 
 	MPI_Finalize();
 	return 0;
+} catch (const std::exception &error) {
+    std::cerr << "cudaparosol: " << error.what() << '\n';
+    int initialized = 0;
+    int finalized = 0;
+    MPI_Initialized(&initialized);
+    MPI_Finalized(&finalized);
+    if (initialized && !finalized)
+        MPI_Finalize();
+    return 2;
 }
 
 template <class T>

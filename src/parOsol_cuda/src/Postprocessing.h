@@ -77,7 +77,7 @@ class PostProcess
 			CCS(cudaMalloc((void**) &dev_coord,24*sizeof(t_double)),"tesfa");
 			CCS(cudaMemcpy(dev_coord,coord,24*sizeof(t_double),cudaMemcpyHostToDevice),"safew");
 
-			_grid._gpuGrid->PostProcessK(disp.GetVector(),dVec->GetVector(),dev_coord);
+			_grid._gpuGrid->PostProcessK(disp.GetVector(),dVec->GetVector(),dev_coord,_grid.poisons_ratio);
 
 			t_double *res = new t_double[disp._syncData.gpuVecSize];
 			dVec->CopyToExtCpuVector(res);
@@ -111,7 +111,7 @@ class PostProcess
 			const int NumMaterialProps = 2;
 			double _matprop[2];
 			_matprop[0] = 1000; //reference value Emodule is linear
-			_matprop[1] = 0.3;
+			_matprop[1] = _grid.poisons_ratio;
 			int NumNodesPerElement = 8;
 			int NumDofsPerElement = 24;
 			int NumGaussPoints = 1;
@@ -160,7 +160,7 @@ class PostProcess
 			}
 			delete[] strainbuf;
 			delete[] stressbuf;
-			delete xpref;
+			delete[] xpref;
 		}
 
 	private:

@@ -44,6 +44,7 @@ class MlOctreeGrid : public OctreeGrid<T>
 			OctreeGrid<T>::_My_PID = finegrid->_My_PID;
 			OctreeGrid<T>::_Nr_CPU = finegrid->_Nr_CPU;
 			OctreeGrid<T>::_gpuGridBuilder = gpuGridBuilder;
+			OctreeGrid<T>::poisons_ratio = finegrid->poisons_ratio;
 			Coarse();
 			OctreeGrid<T>::_gpuGridContainer = OctreeGrid<T>::_gpuGridBuilder->BuildGrid(this,level,this);
 		}

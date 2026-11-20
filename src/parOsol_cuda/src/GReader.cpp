@@ -381,9 +381,16 @@ int HDF5_GReader::Read(const std::string& name, hid_t type, void* data)
   hid_t dataset = H5Dopen(group, name.c_str(), H5P_DEFAULT);
   if (dataset < 0)
     return -1;
-  H5Dread(dataset, type, H5S_ALL, H5S_ALL, plist, data);
+  // The caller supplied storage for one value. A scalar memory space also
+  // accepts a single-element dataset and rejects multiple elements.
+  const hid_t memory = H5Screate(H5S_SCALAR);
+  herr_t status = -1;
+  if (memory >= 0) {
+    status = H5Dread(dataset, type, memory, H5S_ALL, plist, data);
+    H5Sclose(memory);
+  }
   H5Dclose(dataset);
-  return 1;
+  return status < 0 ? -1 : 1;
 }
 
 

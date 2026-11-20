@@ -26,6 +26,8 @@
 #include "Config.h"
 #include "Timing.h"
 #include "StiffnessMatrix.h"
+#include "SpectralOptions.h"
+#include <vector>
 #include "BoundaryCondition.h"
 #include "Toolbox.h"
 #include "fem.h"
@@ -135,6 +137,20 @@ class GenericMatrix: public StiffnessMatrix
 			return MyPID;
 		}
 
+		// Build the same reproducible node-key start as the CPU fork. The
+		// host vector is temporary; ghost values are synchronized before upload.
+		void SetVectorRandom(DispVector &x) {
+			std::vector<t_double> values(GetNrDofs());
+			const auto &nodes = _grid.GetOctGrid();
+			for (t_index i=0; i<GetNrDofs()/3; ++i)
+				for (unsigned c=0; c<3; ++c)
+					values[3*i+c] = SpectralRandomValue(std::uint64_t(nodes[i].key), c);
+			_grid.Recv_import_Ghost(values.data());
+			_grid.Send_import_Ghost(values.data());
+			_grid.Wait_import_Ghost();
+			x.CopyFromExtCpuVector(values.data());
+		}
+
 		void PrintTimings() {
 			t_timing elaSum;
 			elaSum.min = 0;
@@ -216,7 +232,7 @@ GenericMatrix<Grid>::GenericMatrix(Grid &grid,uint level,uint lMax,Timer *timing
 	const int NumMaterialProps = 2;
 	_matprop = new double[2];
 	_matprop[0] = 1000; //refernece value Emodule is linear
-	_matprop[1] = 0.3;
+	_matprop[1] = grid.poisons_ratio;
 	int NumNodesPerElement = 8;
 	int NumDofsPerElement = 24;
 	int NumIntegrationPoints = 8;
@@ -247,7 +263,7 @@ GenericMatrix<Grid>::GenericMatrix(Grid &grid,uint level,uint lMax,Timer *timing
 
 	delete[] coord;
 	delete[] tmpstiff;
-  	double nu = 0.3;
+	const double nu = _matprop[1];
 	//if the optimized code is used, following factor has to be used. Else 1
 	_factor = (1-nu)/((1+nu)*(1-2*nu))*1000/(144*(1-nu))*GridDim[0];
 	//_factor = 1;
@@ -258,7 +274,7 @@ GenericMatrix<Grid>::GenericMatrix(Grid &grid,uint level,uint lMax,Timer *timing
 
 template <class Grid>
 GenericMatrix<Grid>::~GenericMatrix() {
-	delete _stiffnessmatrix;
+	delete[] _stiffnessmatrix;
 	delete[] _matprop;
 	if (dia) {
 		delete dia;

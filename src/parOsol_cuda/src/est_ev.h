@@ -27,8 +27,11 @@
 #include "StiffnessMatrix.h"
 #include "VectorOperations.h"
 
-struct eig{
-  double large, small;
+struct eig {
+  double large = 0, small = 0;
+  int iterations = 0;
+  double relativeResidual = 0, relativeChange = 0;
+  bool converged = false, invariantSubspace = false;
 };
 
 /** computes the eigenvalues of the preconditions system
@@ -42,4 +45,7 @@ struct eig{
  */
 
 eig est_ev(StiffnessMatrix &_mat, Solver &_prec, int maxint,DispVector &m1,DispVector &m2,GPUMemoryManager *gpuMM);
+eig EstimateChebyshevSpectrum(StiffnessMatrix &mat, int maxit,
+                             DispVector &work1, DispVector &work2,
+                             GPUMemoryManager *gpuMM);
 #endif /* EST_EV_H */

@@ -25,7 +25,7 @@
 #include "Postprocessing.h"
 #include "GWriter.hpp"
 
-#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
 
 //! A class to write the result in the format that ParFE uses.
 
@@ -89,7 +89,7 @@ class HDF5ParfePrinter {
 		   Writer->Write("nr_material_properties", (int) 2);
 		   Writer->Write("nr_material_types", (int)1);
 
-		    double mat_props[2] = {1000,0.3};
+		    double mat_props[2] = {1000, _grid.poisons_ratio};
 		    Writer->Write("materials", mat_props, 1, 1, 2, 0);
 		    Writer->Write("iteration_limit", (int)2000);
 		    Writer->Write("tolerance", (double) 1e-5);
@@ -161,13 +161,14 @@ class HDF5ParfePrinter {
 			//Quick an dirty hack:
 			//compute the offset with double
             Eigen::VectorXd ind(_grid.GetNrDofs());
-			_grid.Recv_import_Ghost(ind);
+			// Initialize owned IDs before posting the ghost receive.
 			ind.setZero(_grid.GetNrDofs());
 			t_octree_key offset = _grid.GetNodeOffset();
-			for (unsigned int i = 0; i < _grid.GetNrNodes(); i++) {
+			for (unsigned int i = 0; i < _grid.GetNrPrivateNodes(); i++) {
 				ind[3*i] = i + offset+1;
 			}
-			_grid.Send_import_Ghost(ind);
+			_grid.Recv_import_Ghost(ind.data());
+			_grid.Send_import_Ghost(ind.data());
 			_grid.Wait_import_Ghost();
 
 			t_index e =0;

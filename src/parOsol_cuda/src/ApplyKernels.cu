@@ -1246,7 +1246,7 @@ void inline __device__ invar(double *stress, double &sigma, double &dsbar, doubl
     return;
 }
 
-__global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_double *g_num,t_double *x,t_double *y) {
+__global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_double *g_num,t_double *x,t_double *y, t_double poisson_ratio) {
 	//nip = 1;
 	//nst = 6;
 	//ndim = 3;
@@ -1257,7 +1257,6 @@ __global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_doub
 	t_index offsets[8];
 	t_double disps[24];
 	t_double e;
-	t_double v = 0.3;
 
 	if (index >= numStarts) {
 		return;
@@ -1284,7 +1283,7 @@ __global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_doub
 	}
 
 	t_double D[nst*nst];
-	d_mat(D,e,v);
+	d_mat(D,e,poisson_ratio);
 
 	t_double points[nip*ndim];
 	t_double weights[nip];
@@ -1326,12 +1325,12 @@ __global__ void PostProcessHashKernel(t_index numStarts,HashMask hashMask,t_doub
 
 }
 
-void GPUGridHash::PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,cudaStream_t stream) {
+void GPUGridHash::PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,t_double poisson_ratio,cudaStream_t stream) {
 	int blockcount = _applyStarts/128 + 1;
-	PostProcessHashKernel<<<blockcount,128,0,stream>>>(_applyStarts,_hashMask,g_num,dev_x,dev_y);
+	PostProcessHashKernel<<<blockcount,128,0,stream>>>(_applyStarts,_hashMask,g_num,dev_x,dev_y,poisson_ratio);
 }
 
-__global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets elementOffsets,t_double *g_num,t_double *x,t_double *y) {
+__global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets elementOffsets,t_double *g_num,t_double *x,t_double *y, t_double poisson_ratio) {
 	//nip = 1;
 	//nst = 6;
 	//ndim = 3;
@@ -1342,7 +1341,6 @@ __global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets element
 	t_index offsets[8];
 	t_double disps[24];
 	t_double e;
-	t_double v = 0.3;
 
 	if (index >= numStarts) {
 		return;
@@ -1365,7 +1363,7 @@ __global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets element
 	}
 
 	t_double D[nst*nst];
-	d_mat(D,e,v);
+	d_mat(D,e,poisson_ratio);
 
 	t_double points[nip*ndim];
 	t_double weights[nip];
@@ -1407,8 +1405,8 @@ __global__ void PostProcessOffsetKernel(t_index numStarts,ElementOffsets element
 
 }
 
-void GPUGridOffset::PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,cudaStream_t stream) {
+void GPUGridOffset::PostProcessK(t_double *dev_x,t_double *dev_y,t_double *g_num,t_double poisson_ratio,cudaStream_t stream) {
 	int blockcount = _applyStarts/128 + 1;
-	PostProcessOffsetKernel<<<blockcount,128,0,stream>>>(_applyStarts,_elementOffsets,g_num,dev_x,dev_y);
+	PostProcessOffsetKernel<<<blockcount,128,0,stream>>>(_applyStarts,_elementOffsets,g_num,dev_x,dev_y,poisson_ratio);
 }
 
